@@ -1,0 +1,171 @@
+---
+title: "hw2"
+author: "Connor Weida"
+date: "2023-03-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr)
+library(dplyr)
+library(tidyverse)
+library(shiny)
+theme_set(theme_bw())
+```
+
+
+# Lines 21-74 document the work I had to do to get a dataset that was desireable and small enough to be public on github
+
+```{r}
+#pitches <- read_csv("2019_pitches.csv")
+#dim(pitches)
+```
+
+```{r}
+#colnames(pitches)
+```
+```{r}
+# cleaned_pitches <- pitches %>%
+#   mutate(
+#     spin_rate = NULL,
+#     spin_dir = NULL,
+#     type_confidence = NULL,
+#     ax = NULL,
+#     ay = NULL,
+#     az = NULL,
+#     sz_bot = NULL,
+#     sz_top = NULL,
+#     vx0 = NULL,
+#     vy0 = NULL,
+#     vz0 = NULL,
+#     x = NULL,
+#     x0 = NULL,
+#     y = NULL,
+#     y0 = NULL,
+#     z0 = NULL,
+#     pfx_x = NULL,
+#     pfx_z = NULL,
+#     nasty = NULL,
+#     zone = NULL,
+#     break_y = NULL
+#   )
+```
+
+```{r}
+# Cut down this dataset because it is too big
+# new_pitches <- cleaned_pitches %>%
+#   filter(
+#     pitch_type %in% c("CH", "CU", "FF", "FT", "SL"),
+#   )
+# 
+# # randomly selected 10% of the data because this is too big still
+# set.seed(100)
+# n = round(dim(new_pitches)[1] * .1)
+# final_pitches <- sample_n(new_pitches, n)
+# head(final_pitches)
+# dim(final_pitches)
+```
+# Because my dataset is too large, cut it down and make it small enough to fit on github to be public.
+```{r}
+#write.csv(final_pitches, "final_pitches.csv")
+```
+
+# Read from the public link on my github:
+```{r}
+final_pitches = read.csv("https://github.com/connorweida/Stat436-HW2/raw/main/final_pitches.csv")
+```
+
+
+*Test a version of my plot for the Shiny App
+```{r}
+ggplot(final_pitches, aes(px, pz)) +
+  geom_point(aes(color = pitch_type), alpha = 0.25) +
+  geom_segment(x = 0.831, y = 1.5, xend = 0.831, yend = 3.6) +
+  geom_segment(x = -0.831, y = 1.5, xend = -0.831, yend = 3.6) +
+  geom_segment(x = -0.831, y = 1.5, xend = 0.831, yend = 1.5) +
+  geom_segment(x = -0.831, y = 3.6, xend = 0.831, yend = 3.6) +
+  xlim(-6,12) +
+  ylim(-6, 12)
+```
+
+# Used this as source:
+# https://www.closecallsports.com/2022/08/ccs-stats-explanation-how-to-read-pitch.html#:~:text=px%20%2D%20The%20pitch's%20horizontal%20location,pz%20%2D%20The%20pitch's%20vertical%20location.
+
+**Going to say that abs(0.831) is the width of an absolute strike and the height will be that of an average player (1.5 feet to 3.6 feet)**
+
+**Let's try filtering to what were strikes and see if this is reasonable:**
+```{r, fig.height=5, fig.width=5}
+# Filter to only show the called strikes, this looks very reasonable so we will keep this as our strikezone.
+final_pitches %>%
+  filter(code == "C") %>%
+  ggplot(aes(px, pz)) +
+  geom_point(aes(color = pitch_type), alpha = 0.25) +
+  geom_segment(x = 0.831, y = 1.5, xend = 0.831, yend = 3.6) +
+  geom_segment(x = -0.831, y = 1.5, xend = -0.831, yend = 3.6) +
+  geom_segment(x = -0.831, y = 1.5, xend = 0.831, yend = 1.5) +
+  geom_segment(x = -0.831, y = 3.6, xend = 0.831, yend = 3.6) +
+  xlim(-2.5,5.5) +
+  ylim(-2.5,5.5)
+```
+**Good, this is clearly reasonable.**
+
+
+# Write function for plot to be plotted in Shiny App
+```{r, fig.height=5, fig.width=5}
+plot_pitches <- function(df) {
+  ggplot(df, aes(px, pz)) +
+  geom_point(aes(color = pitch_type), alpha = 0.35) +
+  labs(x = "Width in Relation to Strike Zone", y = "Height in Relation to Strike Zone") +
+  theme(axis.title = element_text(size = 20)) +
+  geom_segment(x = 0.831, y = 1.5, xend = 0.831, yend = 3.6) +
+  geom_segment(x = -0.831, y = 1.5, xend = -0.831, yend = 3.6) +
+  geom_segment(x = -0.831, y = 1.5, xend = 0.831, yend = 1.5) +
+  geom_segment(x = -0.831, y = 3.6, xend = 0.831, yend = 3.6) +
+  xlim(-2.5,5.5) +
+  ylim(-2.5,5.5)
+}
+
+plot_pitches(final_pitches)
+```
+
+# Code for the Shiny App:
+- Graphical Queries: select pitch type and select slider of break length
+```{r}
+informative_text <- p("This dataset originally came from the nearly 729,000 pitches that were thrown in the 2019 Major League Baseball (MLB) Regular Season. Pitches can be in different types, primarily based on the grip a pitcher has on the ball while it is thrown. The break length of a pitch is the amount of distance (in feet) from release to the plate that the ball is breaking, which means altering course from a typical straight line (controlled for gravity). The black rectangle on the plot shows the typical strike zone for a given batter. The axes are in feet. Select one or more pitch types and desired break length to get started. I narrowed this set down to only include 5 different pitches of interest:")
+more_text <- p("CH: Changeup, CU: Curveball, FF: Four-Seam Fastball, FT: Two-Seam Fastball, SL: Slider")
+```
+
+```{r}
+ui <- fluidPage(
+  titlePanel("MLB Pitch Spray Chart Sample from 2019"),
+  mainPanel(informative_text),
+  sidebarPanel(more_text),
+  
+  selectInput("pitch_type", "Pitch Type", unique(final_pitches$pitch_type), multiple = TRUE),
+  sliderInput("break_length", "Break Length (ft)", 1, 21, c(1, 21)),
+  plotOutput("scatterplot")
+)
+
+server <- function(input, output) {
+  output$scatterplot <- renderPlot({
+    
+    if (length(input$pitch_type) == 0) {
+      return(plot_pitches(final_pitches))
+    }
+    
+    final_pitches %>%
+      filter(
+        pitch_type %in% input$pitch_type,
+        break_length >= input$break_length[1],
+        break_length <= input$break_length[2]
+        ) %>%
+      plot_pitches()
+  })
+}
+
+shinyApp(ui, server)
+```
